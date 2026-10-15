@@ -1,273 +1,242 @@
 
+import json
+import secrets
 import streamlit as st
+from google import genai
+from google.genai import types
 
 st.set_page_config(
-    page_title="Online Quiz System",
+    page_title="AI Online Quiz System",
     page_icon="📝",
     layout="centered"
 )
 
-st.title("📝 Online Quiz and Assessment System")
-st.write("Choose your interested domain and test your knowledge!")
+st.title("📝 AI Online Quiz and Assessment System")
+st.write(
+    "Choose your domain and difficulty. "
+    "AI will generate 10 questions and analyze your performance."
+)
 
-# Questions for each domain
-quiz_data = {
-    "Python": [
-        {
-            "question": "Which symbol is used for comments in Python?",
-            "options": ["//", "#", "/*", "<!--"],
-            "answer": "#"
-        },
-        {
-            "question": "Which keyword is used to define a function?",
-            "options": ["function", "def", "fun", "define"],
-            "answer": "def"
-        },
-        {
-            "question": "Which data type stores whole numbers?",
-            "options": ["str", "int", "list", "bool"],
-            "answer": "int"
-        },
-        {
-            "question": "Which function displays output?",
-            "options": ["input()", "print()", "show()", "display()"],
-            "answer": "print()"
-        },
-        {
-            "question": "Which collection uses key-value pairs?",
-            "options": ["List", "Tuple", "Dictionary", "Set"],
-            "answer": "Dictionary"
-        }
-    ],
+DOMAINS = [
+    "Python",
+    "Java",
+    "SQL",
+    "HTML and CSS",
+    "JavaScript",
+    "Aptitude"
+]
 
-    "Java": [
-        {
-            "question": "Which keyword creates a class in Java?",
-            "options": ["class", "define", "struct", "create"],
-            "answer": "class"
-        },
-        {
-            "question": "Which method is the entry point of a Java program?",
-            "options": ["start()", "run()", "main()", "execute()"],
-            "answer": "main()"
-        },
-        {
-            "question": "Which type stores whole numbers?",
-            "options": ["String", "int", "boolean", "char"],
-            "answer": "int"
-        },
-        {
-            "question": "Which keyword creates an object?",
-            "options": ["class", "new", "this", "void"],
-            "answer": "new"
-        },
-        {
-            "question": "Which statement prints output in Java?",
-            "options": [
-                "System.out.println()",
-                "Console.read()",
-                "print.line()",
-                "echo()"
-            ],
-            "answer": "System.out.println()"
-        }
-    ],
+DIFFICULTIES = ["Easy", "Medium", "Hard", "Mixed"]
 
-    "SQL": [
-        {
-            "question": "Which command retrieves data from a table?",
-            "options": ["INSERT", "SELECT", "DELETE", "UPDATE"],
-            "answer": "SELECT"
-        },
-        {
-            "question": "Which key uniquely identifies a row?",
-            "options": ["Foreign key", "Primary key", "Duplicate key", "Sort key"],
-            "answer": "Primary key"
-        },
-        {
-            "question": "Which command adds a new row?",
-            "options": ["INSERT", "ALTER", "DROP", "SELECT"],
-            "answer": "INSERT"
-        },
-        {
-            "question": "Which clause filters rows?",
-            "options": ["ORDER BY", "WHERE", "GROUP BY", "JOIN"],
-            "answer": "WHERE"
-        },
-        {
-            "question": "Which command changes existing data?",
-            "options": ["UPDATE", "CREATE", "SELECT", "DROP"],
-            "answer": "UPDATE"
-        }
-    ],
 
-    "HTML and CSS": [
-        {
-            "question": "What does HTML stand for?",
-            "options": [
-                "Hyper Text Markup Language",
-                "High Text Machine Language",
-                "Hyper Transfer Main Language",
-                "Home Tool Markup Language"
-            ],
-            "answer": "Hyper Text Markup Language"
-        },
-        {
-            "question": "Which HTML tag creates a hyperlink?",
-            "options": ["<p>", "<a>", "<h1>", "<img>"],
-            "answer": "<a>"
-        },
-        {
-            "question": "Which language styles a webpage?",
-            "options": ["SQL", "CSS", "Python", "Java"],
-            "answer": "CSS"
-        },
-        {
-            "question": "Which CSS property changes text color?",
-            "options": ["margin", "font-size", "color", "padding"],
-            "answer": "color"
-        },
-        {
-            "question": "Which HTML tag displays an image?",
-            "options": ["<image>", "<pic>", "<img>", "<src>"],
-            "answer": "<img>"
-        }
-    ],
+def get_api_key():
+    # Read the key securely from Streamlit Secrets
+    try:
+        return st.secrets["GEMINI_API_KEY"]
+    except (KeyError, FileNotFoundError):
+        return ""
 
-    "JavaScript": [
-        {
-            "question": "Which keyword declares a variable?",
-            "options": ["var", "define", "int", "variable"],
-            "answer": "var"
-        },
-        {
-            "question": "Which symbol is used for strict equality?",
-            "options": ["=", "==", "===", "!="],
-            "answer": "==="
-        },
-        {
-            "question": "Which method displays a message in the console?",
-            "options": [
-                "console.log()",
-                "print()",
-                "System.out.println()",
-                "show.console()"
-            ],
-            "answer": "console.log()"
-        },
-        {
-            "question": "Which keyword declares a block-scoped variable?",
-            "options": ["let", "echo", "integer", "define"],
-            "answer": "let"
-        },
-        {
-            "question": "Which language adds interactivity to webpages?",
-            "options": ["SQL", "HTML", "JavaScript", "CSS"],
-            "answer": "JavaScript"
-        }
-    ],
 
-    "Aptitude": [
-        {
-            "question": "What is 15 + 25?",
-            "options": ["30", "35", "40", "45"],
-            "answer": "40"
-        },
-        {
-            "question": "What is 12 × 5?",
-            "options": ["50", "55", "60", "65"],
-            "answer": "60"
-        },
-        {
-            "question": "Find the next number: 2, 4, 6, 8, ?",
-            "options": ["9", "10", "11", "12"],
-            "answer": "10"
-        },
-        {
-            "question": "What is half of 100?",
-            "options": ["25", "40", "50", "75"],
-            "answer": "50"
-        },
-        {
-            "question": "If one pen costs ₹10, what do 3 pens cost?",
-            "options": ["₹20", "₹25", "₹30", "₹40"],
-            "answer": "₹30"
-        }
-    ]
-}
+def generate_questions(domain, difficulty):
+    api_key = get_api_key()
 
-# Initialize session state
-if "started" not in st.session_state:
-    st.session_state.started = False
-
-if "result" not in st.session_state:
-    st.session_state.result = None
-
-if "attempt" not in st.session_state:
-    st.session_state.attempt = 0
-
-# Step 1: Student details and domain selection
-if not st.session_state.started:
-    st.subheader("Step 1: Student Details")
-
-    with st.form("student_form"):
-        student_name = st.text_input("Enter your name")
-
-        domain = st.selectbox(
-            "Select your interested test domain",
-            list(quiz_data.keys())
+    if not api_key:
+        raise ValueError(
+            "Gemini API key is missing. Add GEMINI_API_KEY "
+            "in Streamlit Cloud app Secrets."
         )
 
-        start = st.form_submit_button("Start Test")
+    client = genai.Client(api_key=api_key)
 
-    if start:
-        if not student_name.strip():
+    # A different random seed prompt for each new test
+    unique_id = secrets.token_hex(8)
+
+    prompt = f"""
+You are an expert technical assessment question creator.
+
+Create exactly 10 original multiple-choice questions.
+
+Selected domain: {domain}
+Difficulty: {difficulty}
+Unique test identifier: {unique_id}
+
+Requirements:
+1. All questions must belong to the selected domain.
+2. Generate a fresh, varied question set for this test.
+3. Avoid repeating questions within this set.
+4. Questions must test understanding and problem-solving,
+   not just memorization.
+5. For Easy: basic concepts.
+6. For Medium: application and reasoning.
+7. For Hard: advanced concepts, debugging, or complex scenarios.
+8. For Mixed: include easy, medium, and hard questions.
+9. Every question must have exactly 4 answer options.
+10. There must be exactly one correct answer per question.
+11. The answer must exactly match one of the 4 options.
+12. Give a short explanation for the correct answer.
+13. Give each question a topic label for improvement analysis.
+14. Do not include the answer in the question text.
+
+Return ONLY valid JSON in this exact structure:
+{{
+  "questions": [
+    {{
+      "question": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "Option B",
+      "explanation": "Why this answer is correct.",
+      "topic": "Topic name",
+      "difficulty": "Easy"
+    }}
+  ]
+}}
+"""
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.9
+        )
+    )
+
+    data = json.loads(response.text)
+    questions = data.get("questions", [])
+
+    # Validate the AI response before showing the test
+    if len(questions) != 10:
+        raise ValueError(
+            "AI did not generate exactly 10 questions. Please try again."
+        )
+
+    for question in questions:
+        if not all(
+            field in question
+            for field in [
+                "question", "options", "answer",
+                "explanation", "topic", "difficulty"
+            ]
+        ):
+            raise ValueError("AI returned an incomplete question.")
+
+        if len(question["options"]) != 4:
+            raise ValueError("A question does not have 4 options.")
+
+        if question["answer"] not in question["options"]:
+            raise ValueError("An answer does not match its options.")
+
+    return questions
+
+
+# Initialize application state
+defaults = {
+    "questions": None,
+    "student_name": "",
+    "domain": "",
+    "difficulty": "",
+    "result": None,
+    "test_id": 0
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+# STEP 1: Student details and test preferences
+if st.session_state.questions is None:
+    st.subheader("Step 1: Choose Your Test")
+
+    with st.form("student_details"):
+        name = st.text_input("Enter your name")
+
+        domain = st.selectbox(
+            "Choose your interested domain",
+            DOMAINS
+        )
+
+        difficulty = st.selectbox(
+            "Choose difficulty level",
+            DIFFICULTIES
+        )
+
+        generate = st.form_submit_button(
+            "✨ Generate 10 AI Questions"
+        )
+
+    if generate:
+        if not name.strip():
             st.warning("Please enter your name.")
         else:
-            st.session_state.student_name = student_name.strip()
-            st.session_state.domain = domain
-            st.session_state.started = True
-            st.session_state.result = None
-            st.session_state.attempt += 1
-            st.rerun()
+            try:
+                with st.spinner(
+                    "AI is preparing your questions. Please wait..."
+                ):
+                    questions = generate_questions(
+                        domain, difficulty
+                    )
 
-# Step 2: Display questions for the selected domain
-if st.session_state.started:
-    name = st.session_state.student_name
-    domain = st.session_state.domain
-    questions = quiz_data[domain]
+                st.session_state.student_name = name.strip()
+                st.session_state.domain = domain
+                st.session_state.difficulty = difficulty
+                st.session_state.questions = questions
+                st.session_state.result = None
+                st.session_state.test_id += 1
+                st.rerun()
 
-    st.subheader(f"Welcome, {name}!")
-    st.write(f"**Selected Domain:** {domain}")
-    st.write(f"**Total Questions:** {len(questions)}")
-    st.divider()
+            except Exception as error:
+                st.error(
+                    "Could not generate the test. "
+                    "Check your API key, internet connection, "
+                    "API availability, and usage limits."
+                )
+                st.caption(f"Details: {error}")
 
-    # Show the test only until it is submitted
+
+# STEP 2: Display the generated test
+if st.session_state.questions is not None:
+    questions = st.session_state.questions
+
+    st.subheader(
+        f"Welcome, {st.session_state.student_name}!"
+    )
+    st.write(f"**Domain:** {st.session_state.domain}")
+    st.write(f"**Difficulty:** {st.session_state.difficulty}")
+    st.write("**Total questions:** 10")
+
     if st.session_state.result is None:
-        with st.form(f"quiz_form_{st.session_state.attempt}"):
+        with st.form(f"test_{st.session_state.test_id}"):
             answers = []
 
             for i, question in enumerate(questions):
+                st.markdown(
+                    f"**Question {i + 1}: "
+                    f"{question['question']}**"
+                )
+
                 selected = st.radio(
-                    f"Q{i + 1}. {question['question']}",
+                    "Choose one answer:",
                     question["options"],
                     index=None,
-                    key=f"answer_{st.session_state.attempt}_{i}"
+                    key=f"answer_{st.session_state.test_id}_{i}"
                 )
+
                 answers.append(selected)
+                st.divider()
 
-            submitted = st.form_submit_button("Submit Test")
+            submit = st.form_submit_button("Submit Test")
 
-        if submitted:
+        if submit:
             if any(answer is None for answer in answers):
-                st.warning("Please answer all questions before submitting.")
+                st.warning("Please answer all 10 questions.")
             else:
                 score = sum(
                     answers[i] == questions[i]["answer"]
                     for i in range(len(questions))
                 )
 
-                percentage = score / len(questions) * 100
+                percentage = score * 10
 
                 st.session_state.result = {
                     "answers": answers,
@@ -276,46 +245,97 @@ if st.session_state.started:
                 }
                 st.rerun()
 
-    # Step 3: Display results
-    if st.session_state.result is not None:
-        result = st.session_state.result
 
-        st.divider()
-        st.subheader("📊 Test Results")
+# STEP 3: Score, answer review, and improvement analysis
+if (
+    st.session_state.questions is not None
+    and st.session_state.result is not None
+):
+    questions = st.session_state.questions
+    result = st.session_state.result
 
-        st.write(f"**Student:** {name}")
-        st.write(f"**Domain:** {domain}")
+    st.divider()
+    st.subheader("📊 Your Assessment Results")
 
-        st.metric(
-            "Score",
-            f"{result['score']} / {len(questions)}"
+    st.write(f"**Student:** {st.session_state.student_name}")
+    st.write(f"**Domain:** {st.session_state.domain}")
+    st.write(f"**Difficulty:** {st.session_state.difficulty}")
+
+    col1, col2 = st.columns(2)
+    col1.metric("Score", f"{result['score']} / 10")
+    col2.metric("Percentage", f"{result['percentage']}%")
+
+    if result["percentage"] >= 50:
+        st.success("Good work! You passed this assessment.")
+    else:
+        st.info(
+            "Keep practising. Review the topics below "
+            "to strengthen your understanding."
         )
-        st.metric(
-            "Percentage",
-            f"{result['percentage']:.0f}%"
+
+    # Analyze topics where answers were incorrect
+    weak_topics = {}
+
+    for i, question in enumerate(questions):
+        user_answer = result["answers"][i]
+        correct_answer = question["answer"]
+        topic = question["topic"]
+
+        if user_answer != correct_answer:
+            weak_topics[topic] = weak_topics.get(topic, 0) + 1
+
+    st.subheader("🎯 Areas for Improvement")
+
+    if weak_topics:
+        st.write(
+            "Based on the questions you answered incorrectly, "
+            "focus on these topics:"
         )
 
-        if result["percentage"] >= 50:
-            st.success("Congratulations! You passed the test.")
-        else:
-            st.info("Keep practising. You can improve your score!")
+        for topic, count in sorted(
+            weak_topics.items(),
+            key=lambda item: item[1],
+            reverse=True
+        ):
+            st.write(f"- **{topic}** — {count} incorrect answer(s)")
 
-        st.subheader("Answer Review")
+        st.info(
+            "Practice these topics and review the explanations "
+            "below. This analysis is based on your answers."
+        )
+    else:
+        st.success(
+            "Excellent! You answered every question correctly. "
+            "Try a harder difficulty to challenge yourself."
+        )
 
-        for i, question in enumerate(questions):
-            st.write(f"**Q{i + 1}. {question['question']}**")
-            st.write(f"Your answer: {result['answers'][i]}")
-            st.write(f"Correct answer: {question['answer']}")
+    st.subheader("📝 Answer Review")
 
-            if result["answers"][i] == question["answer"]:
-                st.write("✅ Correct")
+    for i, question in enumerate(questions):
+        user_answer = result["answers"][i]
+        correct_answer = question["answer"]
+
+        with st.expander(
+            f"Question {i + 1}: {question['topic']}"
+        ):
+            st.write(question["question"])
+            st.write(f"**Your answer:** {user_answer}")
+            st.write(f"**Correct answer:** {correct_answer}")
+            st.write(
+                f"**Difficulty:** {question['difficulty']}"
+            )
+            st.write(
+                f"**Explanation:** {question['explanation']}"
+            )
+
+            if user_answer == correct_answer:
+                st.success("Correct")
             else:
-                st.write("❌ Incorrect")
+                st.error("Incorrect")
 
-        if st.button("Take Another Test"):
-            st.session_state.started = False
-            st.session_state.result = None
-            st.session_state.attempt += 1
-            st.rerun()
+    if st.button("Take Another Test"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
-st.caption("Online Quiz and Assessment System")
+st.caption("AI-powered Online Quiz and Assessment System")
